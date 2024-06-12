@@ -21,9 +21,10 @@ from hashlib import sha256
 tp_coins=[]
 LAST_BLOCK_HASH = ""
 LAST_TRANSACTION_INDEX = 0
+ALL_TRANSACTIONS = []
 
 
-def dump_blockchain(self):
+def dump_blockchain(self):#affichage de blockchain
         print("number of blocks in the chain : "+str(len(self)))
         for x in range(len(tp_coins)):
             block_temp=tp_coins[x]
@@ -37,7 +38,7 @@ def dump_blockchain(self):
 
 class Block:
 
-    MAX_BLOCK_SIZE=1500
+    MAX_BLOCK_SIZE=1500       #maximum size of blockchain to determine the number of transactions per block 
 
     def __init__(self):
         self.verified_transaction=[]
@@ -94,7 +95,7 @@ class Transaction:
                 'value': self.value,
                 'time' : self.time.isoformat()})
 
-    def sign_transaction(self):
+    def sign_transaction(self):#sign the transaction using the private_key and the transaction info
         private_key = self.sender._private_key
         signer = PKCS1_v1_5.new(private_key)
         h = SHA.new(str(self.to_dict()).encode('utf8'))
@@ -103,14 +104,14 @@ class Transaction:
 
 
 def display_transaction(transaction): #affichae des informations de transaction
-    dict = transaction.to_dict()
-    print("sender : ",dict['sender'])
+    dictt = transaction.to_dict()
+    print("sender : ",dictt['sender'])
     print("-------")
-    print("recipient : ",dict['recipient'])
+    print("recipient : ",dictt['recipient'])
     print("-------")
-    print("value : ",dict['value'])
+    print("value : ",dictt['value'])
     print("-------")
-    print("time : ",dict['time'])
+    print("time : ",dictt['time'])
     print("-------")
     
 
@@ -126,7 +127,7 @@ def mine(message, difficulty):#creation of sha256 for a message that follows the
             return digest
         
 
-def verify_signature(transaction):
+def verify_signature(transaction): #verify the transaction signature through the sender's public key
     public_key = transaction.sender._public_key
     signer = PKCS1_v1_5.new(public_key)
     h = SHA.new(str(transaction.to_dict()).encode('utf8'))
@@ -149,8 +150,65 @@ def execute_transaction(transaction):
     sender._balance -= value
     recipient._balance += value
     
+def pass_transactions(transactions,blockchain):
+    global LAST_BLOCK_HASH
+    global LAST_TRANSACTION_INDEX
+    global ALL_TRANSACTIONS
+    print("LAST BLOCK HASH : ",LAST_BLOCK_HASH)
+    print("LAST TRANSACTION INDEX : ",LAST_TRANSACTION_INDEX)
+    if not transactions:
+        return
+    else :
+        ALL_TRANSACTIONS += transactions
+        print("size of all transaction: ",len(ALL_TRANSACTIONS))
+    
+    if not blockchain:
+        block = Block()
+    else:
+        if blockchain[-1].can_add_transaction(ALL_TRANSACTIONS[LAST_TRANSACTION_INDEX]):
+            block = blockchain = [-1]
+        else:
+            block = Block()
 
+    while(block.can_add_transaction(ALL_TRANSACTIONS[LAST_TRANSACTION_INDEX]) and LAST_TRANSACTION_INDEX<len(ALL_TRANSACTIONS)):
+        temp_transaction = ALL_TRANSACTIONS[LAST_TRANSACTION_INDEX]
+        print("transaction #",LAST_TRANSACTION_INDEX)
+        b1 = True
+        try:
+            verify_signature(temp_transaction)
+            print("signature verified")
+        except(ValueError,TypeError):
+            b1 = False
+            print("wrong signature")
+        
+        if b1 and check_balance(temp_transaction):
+            block.verified_transaction.append(temp_transaction)
+            execute_transaction(temp_transaction)
+        else:
+            print("non validated")
+        
+        print("pre incrementation")
+        LAST_TRANSACTION_INDEX +=1
+        print("post incrementation")
+        if(LAST_TRANSACTION_INDEX<len(ALL_TRANSACTIONS)):
+            if block.can_add_transaction(ALL_TRANSACTIONS[LAST_TRANSACTION_INDEX])==False:
 
+                block.previous_block_hash = LAST_BLOCK_HASH
+                block.Nonce = mine(block, 2)
+                digest = hash(block)
+                blockchain.append(block)
+                LAST_BLOCK_HASH = digest
+
+                block = Block()
+                print("new block added")
+            else:
+                print("working on the same block")
+        else:
+            break
+
+    blockchain.append(block)
+    
+    
 
 if __name__ =='__main__':
     
@@ -174,44 +232,24 @@ if __name__ =='__main__':
     Transaction(Vijay, Ramesh, 65.0),
     Transaction(Vijay, Seema, 70.0)
 ]
+    transactions2 = [
+    Transaction(Dinesh, Ramesh, 75.0),
+    Transaction(Dinesh, Seema, 80.0),
+    Transaction(Dinesh, Vijay, 85.0),
+    Transaction(Ramesh, Dinesh, 90.0),
+    Transaction(Ramesh, Seema, 95.0),
+    Transaction(Ramesh, Vijay, 100.0),
+    Transaction(Seema, Dinesh, 105.0),
+    Transaction(Seema, Ramesh, 110.0),
+    Transaction(Seema, Vijay, 115.0),
+    Transaction(Vijay, Dinesh, 120.0),
+    Transaction(Vijay, Ramesh, 125.0),
+    Transaction(Vijay, Seema, 130.0)]
 #    for i in range(len(transactions)):
 #        print("size transaction #1 :",len(json.dumps(transactions[i].to_dict())))
 
-    block = Block()
-    while(block.can_add_transaction(transactions[LAST_TRANSACTION_INDEX]) and LAST_TRANSACTION_INDEX<len(transactions)):
-        temp_transaction = transactions[LAST_TRANSACTION_INDEX]
-        print("transaction #",LAST_TRANSACTION_INDEX)
-        b1 = True
-        try:
-            verify_signature(temp_transaction)
-            print("signature verified")
-        except(ValueError,TypeError):
-            b1 = False
-            print("wrong signature")
-        
-        if b1 and check_balance(temp_transaction):
-            block.verified_transaction.append(temp_transaction)
-            execute_transaction(temp_transaction)
-        else:
-            print("non validated")
-        
-
-        LAST_TRANSACTION_INDEX +=1
-        if(LAST_TRANSACTION_INDEX<len(transactions)):
-            if block.can_add_transaction(transactions[LAST_TRANSACTION_INDEX])==False:
-
-                block.previous_block_hash = LAST_BLOCK_HASH
-                block.Nonce = mine(block, 2)
-                digest = hash(block)
-                tp_coins.append(block)
-                LAST_BLOCK_HASH = digest
-
-                block = Block()
-                print("new block added")
-            else:
-                print("wroking on the same block")
-        else:
-            break
-    tp_coins.append(block)
-
+    pass_transactions(transactions,tp_coins)
+    pass_transactions(transactions2,tp_coins)
     dump_blockchain(tp_coins)
+
+    
